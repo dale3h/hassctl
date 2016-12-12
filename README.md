@@ -2,9 +2,24 @@
 
 A command line utility to simplify the management of Home Assistant
 
+## Compatibility
+
+This utility has been tested on the following platforms:
+
+* Raspberry Pi
+  * Manual install (with `systemd` service)
+  * AIO/One-Step Installer
+  * Hassbian Image
+* Ubuntu Server 16.04.1
+  * Manual install (with `systemd` service)
+
 ## Installation
 
-`sudo wget https://raw.githubusercontent.com/dale3h/hassctl/master/hassctl -O /usr/local/bin/hassctl && sudo chmod +x /usr/local/bin/hassctl`
+`sudo curl -o /usr/local/bin/hassctl https://raw.githubusercontent.com/dale3h/hassctl/master/hassctl && sudo chmod +x /usr/local/bin/hassctl`
+
+## Updating
+
+To update `hassctl` to the latest version, simply run `hassctl update`
 
 ## Usage
 
@@ -37,3 +52,7 @@ Follow the Home Assistant error logs
 **`hassctl config`**
 
 Run the config validator
+
+**`hassctl update`**
+
+Update `hassctl` to the latest version
