@@ -1,0 +1,20 @@
+#!/bin/bash
+
+HASS_SERVICE="home-assistant*"
+
+if [ "$1" = "log" ]; then
+  clear && sudo journalctl ${@:2} -u "$HASS_SERVICE" | grep --color=always -iP '.*(error|errno|warning|exception|failure|failed|warn|except|fail).*|$'
+elif [ "$1" = "error" ]; then
+  clear && sudo journalctl ${@:2} --no-pager -f -u "$HASS_SERVICE" | grep --color=always -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
+elif [ "$1" = "kill" ]; then
+  ps aux | grep 'python' | grep 'hass' | grep -vE 'grep' | awk '{print $2}' | xargs kill -9
+elif [ "$1" = "config" ]; then
+  $(which hass) --script check_config
+elif [ "$1" = "update" ]; then
+  wget -q http://pastebin.com/raw/CwXh0vfN -O- | tr -d '\r' | sudo tee /usr/local/bin/hassctl > /dev/null
+  sudo chown pi:pi /usr/local/bin/hassctl
+  chmod +x /usr/local/bin/hassctl
+  echo "hassctl has been updated."
+else
+  sudo systemctl $@ "$HASS_SERVICE"
+fi
