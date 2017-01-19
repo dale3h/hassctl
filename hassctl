@@ -1,7 +1,12 @@
 #!/bin/bash
 
 update() {
-  sudo curl -s -S -o /usr/local/bin/hassctl https://raw.githubusercontent.com/dale3h/hassctl/master/hassctl && sudo chmod +x /usr/local/bin/hassctl
+  branch="$1"
+  if [[ -z "$branch" ]]; then
+    branch="master"
+  fi
+
+  sudo curl -s -S -o /usr/local/bin/hassctl https://raw.githubusercontent.com/dale3h/hassctl/$branch/hassctl && sudo chmod +x /usr/local/bin/hassctl
   # Reserved for future changes to update function
   # Reserved
   # Reserved
@@ -10,12 +15,7 @@ update() {
   # Reserved
   # Reserved
   # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  echo "hassctl has been updated to the latest version"
+  echo "hassctl has been updated to the latest $branch version"
   exit 0
 }
 
@@ -24,18 +24,36 @@ usage() {
   exit 1
 }
 
+check_config() {
+  check="$($hass --script check_config "$@")"
+  [[ ! "$check" =~ "Failed config" ]]
+}
+
+hass="$(which hass)"
 hass_service="home-assistant*"
 
 if [ "$1" = "log" ]; then
-  clear && sudo journalctl ${@:2} -u "$hass_service" | grep --color=always -iP '.*(error|errno|warning|exception|failure|failed|warn|except|fail).*|$'
+  clear && sudo journalctl "${@:2}" --no-pager -f -u "$hass_service" -o cat | grep --color=always -iP '.*(error|errno|warning|exception|failure|failed|warn|except|fail).*|$'
 elif [ "$1" = "error" ]; then
-  clear && sudo journalctl ${@:2} --no-pager -f -u "$hass_service" | grep --color=always -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
+  clear && sudo journalctl "${@:2}" --no-pager -f -u "$hass_service" | grep --color=always -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
 elif [ "$1" = "kill" ]; then
-  ps aux | grep 'python' | grep 'hass' | grep -vE 'grep' | awk '{print $2}' | xargs kill -9
+  ps aux | grep python | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
 elif [ "$1" = "config" ]; then
-  $(which hass) --script check_config
+  check_config "${@:2}"
+  echo "$check"
 elif [ "$1" = "update" ]; then
-  update
+  update "${@:2}"
+elif [ "$1" = "start" ] || [ "$1" = "restart" ]; then
+  echo "Running configuration check..."
+  check_config
+
+  if [ "$?" != "0" ]; then
+    echo "$check"
+    exit 1
+  fi
+
+  echo "Configuration check passed."
+  sudo systemctl "$@" "$hass_service"
 else
-  sudo systemctl $@ "$hass_service"
+  sudo systemctl "$@" "$hass_service"
 fi

@@ -19,7 +19,8 @@ This utility has been tested on the following platforms:
 
 ## Updating
 
-To update `hassctl` to the latest version, simply run `hassctl update`
+To update `hassctl` to the latest stable version, run `hassctl update` or `hassctl update master`
+To update `hassctl` to the latest dev version, run `hassctl update dev`
 
 ## Usage
 
@@ -41,7 +42,7 @@ Restart the Home Assistance service
 
 Send a SIGKILL (-9) signal to the Home Assistant service
 
-**`hassctl log -f`**
+**`hassctl log`**
 
 Follow the Home Assistant logs (errors are highlighted)
 
@@ -51,8 +52,8 @@ Follow the Home Assistant error logs
 
 **`hassctl config`**
 
-Run the config validator
+Run the configuration check script
 
-**`hassctl update`**
+**`hassctl update [branch]`**
 
 Update `hassctl` to the latest version
