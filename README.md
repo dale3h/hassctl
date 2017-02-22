@@ -1,4 +1,4 @@
-# hassctl
+# hassctl <a href="https://flattr.com/submit/auto?fid=o7dr10&url=https%3A%2F%2Fgithub.com%2Fdale3h%2Fhassctl" target="_blank"><img src="https://button.flattr.com/flattr-badge-large.png" alt="Flattr this" title="Flattr this" border="0"></a>
 
 A command line utility to simplify the management of Home Assistant
 
