@@ -47,7 +47,7 @@ HASSCTL_CONF="${HASSCTL_CONF:-/etc/hassctl.conf}"
 # Read configuration file
 read_config() {
   # Set the repository branch (can be overridden in config)
-  HASSCTL_BRANCH="master"
+  HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
 
   # Try to download config if it doesn't exist
   [[ -f "$HASSCTL_CONF" ]] || download_config
