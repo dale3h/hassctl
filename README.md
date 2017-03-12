@@ -23,6 +23,9 @@ To update `hassctl` to the latest stable version, run `hassctl update` or `hassc
 To update `hassctl` to the latest dev version, run `hassctl update dev`
 
 ## Usage
+You can update Home-Assistant using:
+
+**'update-hass'**
 
 You can control Home Assistant using:
 
