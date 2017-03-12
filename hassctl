@@ -119,7 +119,7 @@ maybe_exec_as() {
   shift
 
   if [[ "$RUN_AS" != "$me" ]] && id -u "$RUN_AS" >/dev/null; then
-    sudo -u "$RUN_AS" "$@"
+    sudo -u "$RUN_AS" -H "$@"
   else
     "$@"
   fi
