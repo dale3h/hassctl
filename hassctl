@@ -1,59 +1,231 @@
 #!/bin/bash
 
-update() {
-  branch="$1"
-  if [[ -z "$branch" ]]; then
-    branch="master"
-  fi
+debug() {
+  (( $DEBUG )) && echo "$(basename $0): DEBUG:" "$@"
+}
 
-  sudo curl -s -S -o /usr/local/bin/hassctl https://raw.githubusercontent.com/dale3h/hassctl/$branch/hassctl && sudo chmod +x /usr/local/bin/hassctl
-  # Reserved for future changes to update function
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  # Reserved
-  echo "hassctl has been updated to the latest $branch version"
-  exit 0
+info() {
+  echo "$(basename $0):" "$@"
+}
+
+warn() {
+  echo "$(basename $0):" "$@" >&2
+}
+
+die() {
+  local rc=1
+  local message=
+
+  [[ $# -gt 1 ]] && rc=$1 && shift
+  [[ ! -z "$@" ]] && warn "$@"
+
+  exit $rc
 }
 
 usage() {
-  echo "usage: $(basename $0) <start|stop|restart|kill|log|error|config|update>"
+  echo "usage: $(basename $0) {help|start|stop|restart|kill|log|error|config|update-hassctl|update-hass|backup|service}" 2>&1
   exit 1
 }
 
-check_config() {
-  check="$($hass --script check_config "$@")"
-  [[ ! "$check" =~ "Failed config" ]]
+# Show usage if no arguments given
+if [[ $# -lt 1 ]]; then
+  usage
+fi
+
+# Report unimplemented command
+no_command() {
+  warn "command not implemented: $1"
+  usage
 }
 
-hass="$(which hass)"
-hass_service="home-assistant*"
+# Get the current username
+me="$(whoami)"
 
-if [ "$1" = "log" ]; then
-  clear && sudo journalctl "${@:2}" --no-pager -f -u "$hass_service" -o cat | grep --color=always -iP '.*(error|errno|warning|exception|failure|failed|warn|except|fail).*|$'
-elif [ "$1" = "error" ]; then
-  clear && sudo journalctl "${@:2}" --no-pager -f -u "$hass_service" | grep --color=always -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
-elif [ "$1" = "kill" ]; then
-  ps aux | grep python | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
-elif [ "$1" = "config" ]; then
-  check_config "${@:2}"
-  echo "$check"
-elif [ "$1" = "update" ]; then
-  update "${@:2}"
-elif [ "$1" = "start" ] || [ "$1" = "restart" ]; then
-  echo "Running configuration check..."
-  check_config
+# HASSCTL_CONF can be overridden as an env var
+HASSCTL_CONF="${HASSCTL_CONF:-/etc/hassctl.conf}"
 
-  if [ "$?" != "0" ]; then
-    echo "$check"
-    exit 1
+# Read configuration file
+read_config() {
+  # Set the repository branch (can be overridden in config)
+  HASSCTL_BRANCH="master"
+
+  # Try to download config if it doesn't exist
+  [[ -f "$HASSCTL_CONF" ]] || download_config
+
+  # Load config if it exists
+  if [[ -f "$HASSCTL_CONF" ]]; then
+    source "$HASSCTL_CONF"
+  else
+    warn "$HASSCTL_CONF: config file missing, using defaults"
   fi
 
-  echo "Configuration check passed."
-  sudo systemctl "$@" "$hass_service"
-else
-  sudo systemctl "$@" "$hass_service"
-fi
+  # Get this scripts full path
+  HASSCTL_EXEC="$(realpath $0)"
+
+  # Confirm virtualenv path exists or is empty
+  VIRTUAL_ENV="${VIRTUAL_ENV-/srv/homeassistant}"
+  [[ -z "$VIRTUAL_ENV" ]] && warn "continuing without VIRTUAL_ENV"
+  [[ -z "$VIRTUAL_ENV" ]] || [[ -d "$VIRTUAL_ENV" ]] \
+    || die "$VIRTUAL_ENV: no such directory (VIRTUAL_ENV)"
+
+  # Verify user exists
+  HASS_USER="${HASS_USER:-homeassistant}"
+  id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user (HASS_USER)"
+
+  HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
+  HASS_SERVICE="${HASS_SERVICE:-home*assistant*}"
+
+  if [[ ! -z "$VIRTUAL_ENV" ]]; then
+    PIP_EXEC="${PIP_EXEC:-$VIRTUAL_ENV/bin/pip3}"
+    HASS_EXEC="${HASS_EXEC:-$VIRTUAL_ENV/bin/hass}"
+  else
+    PIP_EXEC="${PIP_EXEC:-$(which pip3)}"
+    HASS_EXEC="${HASS_EXEC:-$(which hass)}"
+  fi
+
+  [[ -f "$PIP_EXEC" ]] || die "$PIP_EXEC: no such file (PIP_EXEC)"
+  [[ -x "$PIP_EXEC" ]] || die "$PIP_EXEC: file not executable (PIP_EXEC)"
+
+  [[ -f "$HASS_EXEC" ]] || die "$HASS_EXEC: no such file (HASS_EXEC)"
+  [[ -x "$HASS_EXEC" ]] || die "$HASS_EXEC: file not executable (HASS_EXEC)"
+
+  return 0
+}
+
+download_config() {
+  [[ ! -f "$HASSCTL_CONF" ]] || return
+
+  BRANCH="${1:-$HASSCTL_BRANCH}"
+  BRANCH="${BRANCH:-master}"
+
+  CONFIG_URL="https://raw.githubusercontent.com/dale3h/hassctl/$BRANCH/hassctl.conf"
+
+  debug "downloading default config from $CONFIG_URL"
+
+  HTTP_CODE="$(sudo curl --write-out %{http_code} --silent --show-error --output "$HASSCTL_CONF" "$CONFIG_URL")"
+
+  if [[ $? -ne 0 ]] || [[ "$HTTP_CODE" != "200" ]]; then
+    # Clean up failed config file
+    [[ -f "$HASSCTL_CONF" ]] && sudo rm "$HASSCTL_CONF"
+    debug "could not install default config"
+  else
+    debug "installed default config to $HASSCTL_CONF"
+  fi
+}
+
+# Execute commands for a specific user
+maybe_exec_as() {
+  local RUN_AS="$1"
+  shift
+
+  if [[ "$RUN_AS" != "$me" ]] && id -u "$RUN_AS" >/dev/null; then
+    sudo -u "$RUN_AS" "$@"
+  else
+    "$@"
+  fi
+}
+
+# Update hassctl script
+update_hassctl() {
+  BRANCH="${1:-$HASSCTL_BRANCH}"
+  BRANCH="${BRANCH:-master}"
+
+  BRANCH_URL="https://raw.githubusercontent.com/dale3h/hassctl/$BRANCH"
+  HASSCTL_URL="$BRANCH_URL/hassctl"
+  CONFIG_URL="$BRANCH_URL/hassctl.conf"
+
+  debug "installing from $HASSCTL_URL"
+
+  CP_OPTS="--remove-destination"
+
+  sudo curl -s -S -o "$HASSCTL_EXEC.update" "$HASSCTL_URL" \
+    && sudo chmod +x "$HASSCTL_EXEC.update" \
+    && sudo cp $CP_OPTS "$HASSCTL_EXEC.update" "$HASSCTL_EXEC" \
+    && sudo rm "$HASSCTL_EXEC.update"
+
+  if [[ $? -ne 0 ]]; then
+    # Clean up if something went wrong
+    sudo rm "$HASSCTL_EXEC.update"
+    die "utility update failed"
+  fi
+
+  info "utility has been updated to the latest $BRANCH version"
+  exit 0
+}
+
+# Update homeassistant package
+update_hass() {
+  local VERSION="$1"
+
+  if [[ ! -z $VERSION ]]; then
+    VERSION="==$VERSION"
+  fi
+
+  maybe_exec_as "$HASS_USER" "$PIP_EXEC" install --upgrade homeassistant$VERSION
+  exit $?
+}
+
+# Run hass check_config script
+check_config() {
+  maybe_exec_as "$HASS_USER" "$HASS_EXEC" --script check_config -c "$HASS_CONFIG" "$@"
+}
+
+# Process arguments
+case "$1" in
+  help)
+    usage
+    ;;
+
+  log)
+    read_config
+    clear && sudo journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE"
+    ;;
+
+  error)
+    read_config
+    clear && sudo journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
+    ;;
+
+  config)
+    read_config
+    check_config "${@:2}"
+    ;;
+
+  update-hassctl)
+    read_config
+    update_hassctl "${@:2}"
+    ;;
+
+  update-hass)
+    read_config
+    update_hass "${@:2}"
+    ;;
+
+  backup)
+    no_command "$@"
+    ;;
+
+  service)
+    no_command "$@"
+    ;;
+
+  kill)
+    sudo systemctl kill --signal=SIGKILL "$HASS_SERVICE"
+    ;;
+
+  kill-alt)
+    ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
+    ;;
+
+  list-units|list-sockets|list-timers|start|stop|\
+  reload|restart|reload-or-restart|is-active|is-enabled|\
+  is-failed|status|show|cat|enable|disable)
+    # Pass commands to Home Assistant service
+    read_config
+    sudo systemctl "$@" "$HASS_SERVICE"
+    ;;
+
+  *)
+    usage
+    ;;
+esac
