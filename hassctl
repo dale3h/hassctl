@@ -34,7 +34,7 @@ fi
 
 # Report unimplemented command
 no_command() {
-  warn "command not implemented: $1"
+  warn "command not yet implemented: $1"
   usage
 }
 
@@ -119,8 +119,10 @@ maybe_exec_as() {
   shift
 
   if [[ "$RUN_AS" != "$me" ]] && id -u "$RUN_AS" >/dev/null; then
+    debug "sudo -u \"$RUN_AS\" -H \"$@\""
     sudo -u "$RUN_AS" -H "$@"
   else
+    debug "\"$@\""
     "$@"
   fi
 }
@@ -170,6 +172,11 @@ check_config() {
   maybe_exec_as "$HASS_USER" "$HASS_EXEC" --script check_config -c "$HASS_CONFIG" "$@"
 }
 
+# Read config from file
+if [[ "$1" != "help" ]]; then
+  read_config
+fi
+
 # Process arguments
 case "$1" in
   help)
@@ -177,27 +184,24 @@ case "$1" in
     ;;
 
   log)
-    read_config
+    debug "clear && sudo journalctl \"${@:2}\" --no-pager -o cat -fu \"$HASS_SERVICE\""
     clear && sudo journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE"
     ;;
 
   error)
-    read_config
+    debug "sudo journalctl \"${@:2}\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'"
     clear && sudo journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '^--.*--$|^(?!.*Current job from).*(error|errno|warning|exception|failure|failed|warn|except|fail).*'
     ;;
 
   config)
-    read_config
     check_config "${@:2}"
     ;;
 
   update-hassctl)
-    read_config
     update_hassctl "${@:2}"
     ;;
 
   update-hass)
-    read_config
     update_hass "${@:2}"
     ;;
 
@@ -210,10 +214,12 @@ case "$1" in
     ;;
 
   kill)
+    debug "sudo systemctl kill --signal=SIGKILL \"$HASS_SERVICE\""
     sudo systemctl kill --signal=SIGKILL "$HASS_SERVICE"
     ;;
 
   kill-alt)
+    debug "ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9"
     ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
     ;;
 
@@ -221,7 +227,7 @@ case "$1" in
   reload|restart|reload-or-restart|is-active|is-enabled|\
   is-failed|status|show|cat|enable|disable)
     # Pass commands to Home Assistant service
-    read_config
+    debug "sudo systemctl \"$@\" \"$HASS_SERVICE\""
     sudo systemctl "$@" "$HASS_SERVICE"
     ;;
 
