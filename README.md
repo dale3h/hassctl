@@ -24,6 +24,10 @@ To update `hassctl` to the latest dev version, run `hassctl update dev`
 
 ## Usage
 
+You can update Home Assistant using:
+
+**`hassctl update-hass`**
+
 You can control Home Assistant using:
 
 **`hassctl start`**
