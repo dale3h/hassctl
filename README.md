@@ -57,3 +57,24 @@ Run the configuration check script
 **`hassctl update [branch]`**
 
 Update `hassctl` to the latest version
+
+***Configuration AIO installer user hass***
+**'/etc/hassctl.conf'**
+This configuration file works for all AIO installers with user *hass* 
+
+```
+# /etc/hassctl.conf: `hassctl' configuration.
+#
+# A full description of the configuration file is at
+# https://github.com/dale3h/hassctl
+
+HASSCTL_BRANCH=master
+
+VIRTUAL_ENV=/srv/hass
+PIP_EXEC=$VIRTUAL_ENV/hass_venv/bin/pip3
+HASS_EXEC=$VIRTUAL_ENV/hass_venv/bin/hass
+
+HASS_CONFIG=/home/hass/.homeassistant
+HASS_USER=hass
+HASS_SERVICE=home-assistant.service
+```
