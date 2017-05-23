@@ -9,7 +9,7 @@ This utility has been tested on the following platforms:
 * Raspberry Pi
   * Manual install (with `systemd` service)
   * AIO/One-Step Installer
-  * Hassbian Image
+  * HASSbian Image
 * Ubuntu Server 16.04.1
   * Manual install (with `systemd` service)
 
@@ -17,16 +17,30 @@ This utility has been tested on the following platforms:
 
 `sudo curl -o /usr/local/bin/hassctl https://raw.githubusercontent.com/dale3h/hassctl/master/hassctl && sudo chmod +x /usr/local/bin/hassctl`
 
-## Updating
+## Updating Home Assistant
 
-To update `hassctl` to the latest stable version, run `hassctl update` or `hassctl update master`
-To update `hassctl` to the latest dev version, run `hassctl update dev`
+The safest way to update Home Assistant in a production environment is to run:
+
+`hassctl update-hass && hassctl config && hassctl restart`
+
+This set of commands will update Home Assistant, run a configuration check, and then restart.
+If the update fails, the configuration check will not run.
+If the configuration check fails, Home Assistant will not be restarted.
+
+If you would like to install a specific version of Home Assistant, run:
+
+`hassctl update-hass 0.43.1` (replace `0.43.1` with the version you wish to install)
+
+## Updating `hassctl`
+
+To update `hassctl` to the latest stable version, run `hassctl update-hassctl` or `hassctl update-hassctl master`
+To update `hassctl` to the latest dev version, run `hassctl update-hassctl dev`
 
 ## Usage
 
 You can update Home Assistant using:
 
-**`hassctl update-hass`**
+**`hassctl update-hass [version]`**
 
 You can control Home Assistant using:
 
@@ -58,25 +72,50 @@ Follow the Home Assistant error logs
 
 Run the configuration check script
 
-**`hassctl update [branch]`**
+**`hassctl update-hassctl [branch]`**
 
 Update `hassctl` to the latest version
 
-***Configuration AIO installer user hass***
-**'/etc/hassctl.conf'**
-This configuration file works for all AIO installers with user *hass* 
+## Configuration Examples
+
+The configuration file is located at `/etc/hassctl.conf`.
+
+### HASSbian
 
 ```
-# /etc/hassctl.conf: `hassctl' configuration.
-#
-# A full description of the configuration file is at
-# https://github.com/dale3h/hassctl
-
 HASSCTL_BRANCH=master
 
-VIRTUAL_ENV=/srv/hass
-PIP_EXEC=$VIRTUAL_ENV/hass_venv/bin/pip3
-HASS_EXEC=$VIRTUAL_ENV/hass_venv/bin/hass
+VIRTUAL_ENV=/srv/homeassistant
+PIP_EXEC=$VIRTUAL_ENV/bin/pip3
+HASS_EXEC=$VIRTUAL_ENV/bin/hass
+
+HASS_CONFIG=/home/homeassistant/.homeassistant
+HASS_USER=homeassistant
+HASS_SERVICE=home-assistant.service
+```
+
+### Current AIO Installer
+
+```
+HASSCTL_BRANCH=master
+
+VIRTUAL_ENV=/srv/homeassistant/homeassistant_venv
+PIP_EXEC=$VIRTUAL_ENV/bin/pip3
+HASS_EXEC=$VIRTUAL_ENV/bin/hass
+
+HASS_CONFIG=/home/homeassistant/.homeassistant
+HASS_USER=homeassistant
+HASS_SERVICE=home-assistant.service
+```
+
+### Pre-December 2016 AIO Installer
+
+```
+HASSCTL_BRANCH=master
+
+VIRTUAL_ENV=/srv/hass/hass_venv
+PIP_EXEC=$VIRTUAL_ENV/bin/pip3
+HASS_EXEC=$VIRTUAL_ENV/bin/hass
 
 HASS_CONFIG=/home/hass/.homeassistant
 HASS_USER=hass
