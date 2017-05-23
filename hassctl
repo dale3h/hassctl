@@ -76,11 +76,11 @@ read_config() {
   VIRTUAL_ENV="${VIRTUAL_ENV-/srv/homeassistant}"
   [[ -z "$VIRTUAL_ENV" ]] && warn "continuing without VIRTUAL_ENV"
   [[ -z "$VIRTUAL_ENV" ]] || [[ -d "$VIRTUAL_ENV" ]] \
-    || die "$VIRTUAL_ENV: no such directory (VIRTUAL_ENV)"
+    || die "$VIRTUAL_ENV: no such directory -- please update VIRTUAL_ENV in /etc/hassctl.conf"
 
   # Verify user exists
   HASS_USER="${HASS_USER:-homeassistant}"
-  id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user (HASS_USER)"
+  id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user -- please update HASS_USER in /etc/hassctl.conf"
 
   HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
   HASS_SERVICE="${HASS_SERVICE:-home*assistant*}"
@@ -93,11 +93,11 @@ read_config() {
     HASS_EXEC="${HASS_EXEC:-$(which hass)}"
   fi
 
-  [[ -f "$PIP_EXEC" ]] || die "$PIP_EXEC: no such file (PIP_EXEC)"
-  [[ -x "$PIP_EXEC" ]] || die "$PIP_EXEC: file not executable (PIP_EXEC)"
+  [[ -f "$PIP_EXEC" ]] || die "$PIP_EXEC: no such file -- please update PIP_EXEC in /etc/hassctl.conf"
+  [[ -x "$PIP_EXEC" ]] || die "$PIP_EXEC: file not executable -- please update PIP_EXEC in /etc/hassctl.conf"
 
-  [[ -f "$HASS_EXEC" ]] || die "$HASS_EXEC: no such file (HASS_EXEC)"
-  [[ -x "$HASS_EXEC" ]] || die "$HASS_EXEC: file not executable (HASS_EXEC)"
+  [[ -f "$HASS_EXEC" ]] || die "$HASS_EXEC: no such file -- please update HASS_EXEC in /etc/hassctl.conf"
+  [[ -x "$HASS_EXEC" ]] || die "$HASS_EXEC: file not executable -- please update HASS_EXEC in /etc/hassctl.conf"
 
   return 0
 }
