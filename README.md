@@ -91,7 +91,7 @@ HASS_EXEC=$VIRTUAL_ENV/bin/hass
 
 HASS_CONFIG=/home/homeassistant/.homeassistant
 HASS_USER=homeassistant
-HASS_SERVICE=home-assistant.service
+HASS_SERVICE=home-assistant@homeassistant.service
 ```
 
 ### Current AIO Installer
