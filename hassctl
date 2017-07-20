@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HASSCTL_VERSION="1.1.0"
+HASSCTL_VERSION="1.2.1"
 
 debug() {
   (( $DEBUG )) && echo "$(basename $0): DEBUG:" "$@"
@@ -25,8 +25,13 @@ die() {
 }
 
 usage() {
-  echo "usage: $(basename $0) {help|start|stop|restart|kill|log|error|debug|config|update-hassctl|update-hass|backup|service}" 2>&1
+  echo "usage: $(basename $0) {help|version|start|stop|restart|kill|log|error|debug|zwave|config|update-hassctl|update-hass|backup|service}" 2>&1
   exit 1
+}
+
+version() {
+  echo "$HASSCTL_VERSION"
+  exit 0
 }
 
 # Show usage if no arguments given
@@ -47,12 +52,20 @@ rm=/bin/rm
 curl=/usr/bin/curl
 systemctl=/bin/systemctl
 journalctl=/bin/journalctl
+tail=/usr/bin/tail
+sed=/bin/sed
 
 # Get the current username
 me="$(whoami)"
 
+# Portable version of realpath
+realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
 # HASSCTL_CONF can be overridden as an env var
 HASSCTL_CONF="${HASSCTL_CONF:-/etc/hassctl.conf}"
+HASSCTL_CONF="$(realpath "$HASSCTL_CONF")"
 
 # Read configuration file
 read_config() {
@@ -76,14 +89,20 @@ read_config() {
   VIRTUAL_ENV="${VIRTUAL_ENV-/srv/homeassistant}"
   [[ -z "$VIRTUAL_ENV" ]] && warn "continuing without VIRTUAL_ENV"
   [[ -z "$VIRTUAL_ENV" ]] || [[ -d "$VIRTUAL_ENV" ]] \
-    || die "$VIRTUAL_ENV: no such directory -- please update VIRTUAL_ENV in /etc/hassctl.conf"
+    || die "$VIRTUAL_ENV: no such directory -- please update VIRTUAL_ENV in $HASSCTL_CONF"
+
+  # Confirm Home Assistant config path exists
+  HASS_CONFIG="${HASS_CONFIG:-/home/homeassistant/.homeassistant}"
+  [[ -z "$HASS_CONFIG" ]] || [[ -d "$HASS_CONFIG" ]] \
+    || die "$HASS_CONFIG: no such directory -- please update HASS_CONFIG in $HASSCTL_CONF"
 
   # Verify user exists
   HASS_USER="${HASS_USER:-homeassistant}"
-  id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user -- please update HASS_USER in /etc/hassctl.conf"
+  id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user -- please update HASS_USER in $HASSCTL_CONF"
 
   HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
   HASS_SERVICE="${HASS_SERVICE:-home*assistant*}"
+  OZW_LOG="${OZW_LOG:-$HASS_CONFIG/OZW_Log.txt}"
 
   if [[ ! -z "$VIRTUAL_ENV" ]]; then
     PIP_EXEC="${PIP_EXEC:-$VIRTUAL_ENV/bin/pip3}"
@@ -93,11 +112,11 @@ read_config() {
     HASS_EXEC="${HASS_EXEC:-$(which hass)}"
   fi
 
-  [[ -f "$PIP_EXEC" ]] || die "$PIP_EXEC: no such file -- please update PIP_EXEC in /etc/hassctl.conf"
-  [[ -x "$PIP_EXEC" ]] || die "$PIP_EXEC: file not executable -- please update PIP_EXEC in /etc/hassctl.conf"
+  [[ -f "$PIP_EXEC" ]] || die "$PIP_EXEC: no such file -- please update PIP_EXEC in $HASSCTL_CONF"
+  [[ -x "$PIP_EXEC" ]] || die "$PIP_EXEC: file not executable -- please update PIP_EXEC in $HASSCTL_CONF"
 
-  [[ -f "$HASS_EXEC" ]] || die "$HASS_EXEC: no such file -- please update HASS_EXEC in /etc/hassctl.conf"
-  [[ -x "$HASS_EXEC" ]] || die "$HASS_EXEC: file not executable -- please update HASS_EXEC in /etc/hassctl.conf"
+  [[ -f "$HASS_EXEC" ]] || die "$HASS_EXEC: no such file -- please update HASS_EXEC in $HASSCTL_CONF"
+  [[ -x "$HASS_EXEC" ]] || die "$HASS_EXEC: file not executable -- please update HASS_EXEC in $HASSCTL_CONF"
 
   return 0
 }
@@ -139,6 +158,8 @@ maybe_exec_as() {
 
 # Update hassctl script
 update_hassctl() {
+  read_config
+
   BRANCH="${1:-$HASSCTL_BRANCH}"
   BRANCH="${BRANCH:-master}"
 
@@ -167,6 +188,7 @@ update_hassctl() {
 
 # Update homeassistant package
 update_hass() {
+  read_config
   local VERSION="$1"
 
   if [[ ! -z $VERSION ]]; then
@@ -179,11 +201,66 @@ update_hass() {
 
 # Run hass check_config script
 check_config() {
+  read_config
   maybe_exec_as "$HASS_USER" "$HASS_EXEC" --script check_config -c "$HASS_CONFIG" "$@"
 }
 
-# Read config from file
-read_config
+# Show Home Assistant raw log
+hass_raw_log() {
+  read_config
+  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\""
+  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE"
+}
+
+# Show Home Assistant error log
+hass_error_log() {
+  read_config
+  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'"
+  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'
+}
+
+# Show Home Assistant debug log
+hass_debug_log() {
+  read_config
+  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'"
+  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'
+}
+
+# Kill Home Assistant service
+hass_kill() {
+  read_config
+  debug "sudo $systemctl kill --signal=SIGKILL \"$HASS_SERVICE\""
+  sudo $systemctl kill --signal=SIGKILL "$HASS_SERVICE"
+}
+
+# Kill Home Assistant using alternative method
+hass_kill_alt() {
+  debug "ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9"
+  ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
+}
+
+# Pass commands to Home Assistant service
+systemctl_cmd() {
+  read_config
+  debug "sudo $systemctl \"$@\" \"$HASS_SERVICE\""
+  sudo $systemctl "$@" "$HASS_SERVICE"
+}
+
+# Show Z-Wave log
+zwave_log() {
+  read_config
+
+  [[ -f "$OZW_LOG" ]] || die "$OZW_LOG: no such file -- please update OZW_LOG in $HASSCTL_CONF"
+  [[ -r "$OZW_LOG" ]] || die "$OZW_LOG: file not readable -- please update OZW_LOG in $HASSCTL_CONF"
+
+  debug "clear && $tail \"$@\" -f \"$OZW_LOG\""
+  clear && $tail "$@" -f "$OZW_LOG" | $sed \
+    -e 's/\(.*Always,.*\)/\o033[35m\1\o033[39m/' \
+    -e 's/\(.*Detail,.*\)/\o033[36m\1\o033[39m/' \
+    -e 's/\(.*Info,.*\)/\o033[32m\1\o033[39m/' \
+    -e 's/\(.*Warning,.*\)/\o033[33m\1\o033[39m/' \
+    -e 's/\(.*Error,.*\)/\o033[31m\1\o033[39m/'
+}
 
 # Process arguments
 case "$1" in
@@ -192,18 +269,19 @@ case "$1" in
     ;;
 
   log)
-    debug "clear && sudo $journalctl \"${@:2}\" --no-pager -o cat -fu \"$HASS_SERVICE\""
-    clear && sudo $journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE"
+    hass_raw_log "${@:2}"
     ;;
 
   error)
-    debug "clear && sudo $journalctl \"${@:2}\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'"
-    clear && sudo $journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'
+    hass_error_log "${@:2}"
     ;;
 
   debug)
-    debug "clear && sudo $journalctl \"${@:2}\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'"
-    clear && sudo $journalctl "${@:2}" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'
+    hass_debug_log "${@:2}"
+    ;;
+
+  zwave)
+    zwave_log "${@:2}"
     ;;
 
   config)
@@ -227,21 +305,21 @@ case "$1" in
     ;;
 
   kill)
-    debug "sudo $systemctl kill --signal=SIGKILL \"$HASS_SERVICE\""
-    sudo $systemctl kill --signal=SIGKILL "$HASS_SERVICE"
+    hass_kill
     ;;
 
   kill-alt)
-    debug "ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9"
-    ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
+    hass_kill_alt
     ;;
 
   list-units|list-sockets|list-timers|start|stop|\
   reload|restart|reload-or-restart|is-active|is-enabled|\
   is-failed|status|show|cat|enable|disable)
-    # Pass commands to Home Assistant service
-    debug "sudo $systemctl \"$@\" \"$HASS_SERVICE\""
-    sudo $systemctl "$@" "$HASS_SERVICE"
+    systemctl_cmd "$@"
+    ;;
+
+  version)
+    version
     ;;
 
   *)

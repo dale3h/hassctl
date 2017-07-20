@@ -34,47 +34,36 @@ If you would like to install a specific version of Home Assistant, run:
 ## Updating `hassctl`
 
 To update `hassctl` to the latest stable version, run `hassctl update-hassctl` or `hassctl update-hassctl master`
-To update `hassctl` to the latest dev version, run `hassctl update-hassctl dev`
+To update `hassctl` to a custom branch on this repo, run `hassctl update-hassctl branch-name`
 
 ## Usage
 
-You can update Home Assistant using:
+### You can update Home Assistant using:
 
-**`hassctl update-hass [version]`**
+**`$ hassctl update-hass`** - Update Home Assistant to the latest version on PyPi
+**`$ hassctl update-hass 0.47.0`** - Update Home Assistant to version 0.47.0
 
-You can control Home Assistant using:
+### You can control Home Assistant using:
 
-**`hassctl start`**
+**`$ hassctl start`** - Start the Home Assistant service
 
-Start the Home Assistant service
+**`$ hassctl stop`** - Stop the Home Assistant service
 
-**`hassctl stop`**
+**`$ hassctl restart`** - Restart the Home Assistance service
 
-Stop the Home Assistant service
+**`$ hassctl kill`** - Send a SIGKILL (-9) signal to the Home Assistant service
 
-**`hassctl restart`**
+**`$ hassctl log`** - Follow the Home Assistant logs (errors are highlighted)
 
-Restart the Home Assistance service
+**`$ hassctl error`** - Follow the Home Assistant error logs
 
-**`hassctl kill`**
+**`$ hassctl debug`** - Follow the Home Assistant debug logs
 
-Send a SIGKILL (-9) signal to the Home Assistant service
+**`$ hassctl zwave`** - Follow the Open Z-Wave logs
 
-**`hassctl log`**
+**`$ hassctl config`** - Run the configuration check script
 
-Follow the Home Assistant logs (errors are highlighted)
-
-**`hassctl error`**
-
-Follow the Home Assistant error logs
-
-**`hassctl config`**
-
-Run the configuration check script
-
-**`hassctl update-hassctl [branch]`**
-
-Update `hassctl` to the latest version
+**`$ hassctl update-hassctl [branch]`** - Update `hassctl` to the latest version
 
 ## Configuration Examples
 
@@ -92,6 +81,8 @@ HASS_EXEC=$VIRTUAL_ENV/bin/hass
 HASS_CONFIG=/home/homeassistant/.homeassistant
 HASS_USER=homeassistant
 HASS_SERVICE=home-assistant@homeassistant.service
+
+OZW_LOG=$HASS_CONFIG/OZW_Log.txt
 ```
 
 ### Current AIO Installer
@@ -106,6 +97,8 @@ HASS_EXEC=$VIRTUAL_ENV/bin/hass
 HASS_CONFIG=/home/homeassistant/.homeassistant
 HASS_USER=homeassistant
 HASS_SERVICE=home-assistant.service
+
+OZW_LOG=$HASS_CONFIG/OZW_Log.txt
 ```
 
 ### Pre-December 2016 AIO Installer
@@ -120,4 +113,6 @@ HASS_EXEC=$VIRTUAL_ENV/bin/hass
 HASS_CONFIG=/home/hass/.homeassistant
 HASS_USER=hass
 HASS_SERVICE=home-assistant.service
+
+OZW_LOG=$HASS_CONFIG/OZW_Log.txt
 ```
