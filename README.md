@@ -24,7 +24,9 @@ The safest way to update Home Assistant in a production environment is to run:
 `hassctl update-hass && hassctl config && hassctl restart`
 
 This set of commands will update Home Assistant, run a configuration check, and then restart.
+
 If the update fails, the configuration check will not run.
+
 If the configuration check fails, Home Assistant will not be restarted.
 
 If you would like to install a specific version of Home Assistant, run:
@@ -34,6 +36,7 @@ If you would like to install a specific version of Home Assistant, run:
 ## Updating `hassctl`
 
 To update `hassctl` to the latest stable version, run `hassctl update-hassctl` or `hassctl update-hassctl master`
+
 To update `hassctl` to a custom branch on this repo, run `hassctl update-hassctl branch-name`
 
 ## Usage
@@ -41,6 +44,7 @@ To update `hassctl` to a custom branch on this repo, run `hassctl update-hassctl
 ### You can update Home Assistant using:
 
 **`$ hassctl update-hass`** - Update Home Assistant to the latest version on PyPi
+
 **`$ hassctl update-hass 0.47.0`** - Update Home Assistant to version 0.47.0
 
 ### You can control Home Assistant using:
