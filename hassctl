@@ -2,7 +2,8 @@
 
 # @todo Update error/debug/zwave commands for Hass.io
 
-HASSCTL_VERSION="1.3.0-alpha"
+HASSCTL_VERSION="1.3.0-alpha.1"
+DEFAULT_BRANCH="hassio"
 
 debug() {
   (( $DEBUG )) && echo "$(basename $0): DEBUG:" "$@"
@@ -93,7 +94,7 @@ HASSCTL_CONF="$(realpath "$HASSCTL_CONF")"
 # Read configuration file
 read_config() {
   # Set the repository branch (can be overridden in config)
-  HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
+  HASSCTL_BRANCH="${HASSCTL_BRANCH:-$DEFAULT_BRANCH}"
 
   # Try to download config if it doesn't exist
   [[ -f "$HASSCTL_CONF" ]] || download_config
@@ -137,7 +138,7 @@ read_config() {
     id -u "$HASS_USER" >/dev/null || die "$HASS_USER: no such user -- please update HASS_USER in $HASSCTL_CONF"
   fi
 
-  HASSCTL_BRANCH="${HASSCTL_BRANCH:-master}"
+  HASSCTL_BRANCH="${HASSCTL_BRANCH:-$DEFAULT_BRANCH}"
   HASS_SERVICE="${HASS_SERVICE:-home*assistant*}"
   OZW_LOG="${OZW_LOG:-$HASS_CONFIG/OZW_Log.txt}"
 
@@ -165,7 +166,7 @@ download_config() {
   [[ ! -f "$HASSCTL_CONF" ]] || return
 
   BRANCH="${1:-$HASSCTL_BRANCH}"
-  BRANCH="${BRANCH:-master}"
+  BRANCH="${BRANCH:-$DEFAULT_BRANCH}"
 
   CONFIG_URL="https://raw.githubusercontent.com/dale3h/hassctl/$BRANCH/hassctl.conf"
 
@@ -201,7 +202,7 @@ update_hassctl() {
   read_config
 
   BRANCH="${1:-$HASSCTL_BRANCH}"
-  BRANCH="${BRANCH:-master}"
+  BRANCH="${BRANCH:-$DEFAULT_BRANCH}"
 
   BRANCH_URL="https://raw.githubusercontent.com/dale3h/hassctl/$BRANCH"
   HASSCTL_URL="$BRANCH_URL/hassctl"
