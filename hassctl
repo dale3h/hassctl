@@ -1,23 +1,39 @@
 #!/bin/bash
 
-# @todo Update error/debug/zwave commands for Hass.io
+# @todo Implement "mode" of install
+# @todo Automatically detect install mode: normal, virtualenv, Hass.io, Docker
 
-HASSCTL_VERSION="1.3.0-alpha.1"
+# @notes MODE_DOCKER=$(docker container inspect homeassistant > /dev/null 2>&1)
+# @notes MODE_HASSIO=$(command -v /usr/bin/hassio)
+
+########################################################################
+## This is a way to pipe ALL lines to a tmp file and read from there. ##
+## This will make it easier to be more portable, since we can pipe    ##
+## any output to this tmp file. :)                                    ##
+########################################################################
+# tmpfile=$(mktemp /tmp/hassctl.XXXXXX)
+# TMP_PID=$( tail -f -n +1 /config/home-assistant.log | grep --line-buffered -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG' > "$tmpfile" &; echo $! )
+# /usr/bin/color-logviewer "$tmpfile"
+# kill $TMP_PID
+# rm "$tmpfile"
+########################################################################
+
+HASSCTL_VERSION="1.3.0-alpha.2"
 DEFAULT_BRANCH="hassio"
 
-debug() {
+function debug() {
   (( $DEBUG )) && echo "$(basename $0): DEBUG:" "$@"
 }
 
-info() {
+function info() {
   echo "$(basename $0):" "$@"
 }
 
-warn() {
+function warn() {
   echo "$(basename $0):" "$@" >&2
 }
 
-die() {
+function die() {
   local rc=1
   local message=
 
@@ -27,19 +43,19 @@ die() {
   exit $rc
 }
 
-usage() {
+function usage() {
   $HASSIO && usage_hassio
 
   echo "usage: $(basename $0) {help|version|start|stop|restart|kill|log|error|debug|zwave|config|update-hassctl|update-hass|backup|service}" 2>&1
   exit 1
 }
 
-usage_hassio() {
+function usage_hassio() {
   echo "usage (Hass.io): $(basename $0) {help|version|start|stop|restart|log|error|debug|zwave|config|update-hassctl|update-hass|backup|service}" 2>&1
   exit 1
 }
 
-version() {
+function version() {
   echo "$HASSCTL_VERSION"
   exit 0
 }
@@ -58,13 +74,13 @@ if [[ $# -lt 1 ]]; then
 fi
 
 # Report unimplemented command
-no_command() {
+function no_command() {
   warn "command not yet implemented: $1"
   usage
 }
 
-no_command_hassio() {
-  warn "command not supported on hass.io: $1"
+function no_command_hassio() {
+  warn "command not supported on Hass.io: $1"
   usage
 }
 
@@ -78,12 +94,13 @@ journalctl=/bin/journalctl
 tail=/usr/bin/tail
 sed=/bin/sed
 apk=/sbin/apk
+grep=/bin/grep
 
 # Get the current username
 me="$(whoami)"
 
 # Portable version of realpath
-realpath() {
+function realpath() {
   [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
 }
 
@@ -92,7 +109,7 @@ HASSCTL_CONF="${HASSCTL_CONF:-/etc/hassctl.conf}"
 HASSCTL_CONF="$(realpath "$HASSCTL_CONF")"
 
 # Read configuration file
-read_config() {
+function read_config() {
   # Set the repository branch (can be overridden in config)
   HASSCTL_BRANCH="${HASSCTL_BRANCH:-$DEFAULT_BRANCH}"
 
@@ -162,7 +179,7 @@ read_config() {
   return 0
 }
 
-download_config() {
+function download_config() {
   [[ ! -f "$HASSCTL_CONF" ]] || return
 
   BRANCH="${1:-$HASSCTL_BRANCH}"
@@ -183,8 +200,12 @@ download_config() {
   fi
 }
 
+function build_config() {
+  echo "Placeholder for auto-generation of initial configuration file"
+}
+
 # Execute commands for a specific user
-maybe_exec_as() {
+function maybe_exec_as() {
   local RUN_AS="$1"
   shift
 
@@ -198,7 +219,7 @@ maybe_exec_as() {
 }
 
 # Update hassctl script
-update_hassctl() {
+function update_hassctl() {
   read_config
 
   BRANCH="${1:-$HASSCTL_BRANCH}"
@@ -228,7 +249,7 @@ update_hassctl() {
 }
 
 # Update homeassistant package
-update_hass() {
+function update_hass() {
   read_config
   local VERSION="$1"
 
@@ -255,7 +276,7 @@ update_hass() {
 }
 
 # Run hass check_config script
-check_config() {
+function check_config() {
   read_config
 
   if $HASSIO; then
@@ -269,37 +290,37 @@ check_config() {
 }
 
 # Show Home Assistant raw log
-hass_raw_log() {
-  read_config
-
+function hass_raw_log() {
   $HASSIO && hass_raw_log_hassio "$@"
+
+  read_config
 
   debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\""
   clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE"
 }
 
 # Show Home Assistant error log
-hass_error_log() {
+function hass_error_log() {
+  $HASSIO && hass_error_log_hassio "$@"
+
   read_config
 
-  $HASSIO && no_command_hassio "error"
-
-  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'"
-  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'
+  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | $grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'"
+  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | $grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'
 }
 
 # Show Home Assistant debug log
-hass_debug_log() {
+function hass_debug_log() {
+  $HASSIO && hass_debug_log_hassio "$@"
+
   read_config
 
-  $HASSIO && no_command_hassio "debug"
-
-  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'"
-  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'
+  debug "clear && sudo $journalctl \"$@\" --no-pager -o cat -fu \"$HASS_SERVICE\" | $grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'"
+  clear && sudo $journalctl "$@" --no-pager -o cat -fu "$HASS_SERVICE" | $grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'
 }
 
 # Kill Home Assistant service
-hass_kill() {
+function hass_kill() {
   read_config
 
   $HASSIO && no_command_hassio "kill"
@@ -309,15 +330,15 @@ hass_kill() {
 }
 
 # Kill Home Assistant using alternative method
-hass_kill_alt() {
+function hass_kill_alt() {
   $HASSIO && no_command_hassio "kill-alt"
 
-  debug "ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9"
-  ps aux | grep python3 | grep hass | grep -vE grep | awk '{print $2}' | xargs kill -9
+  debug "ps aux | $grep python3 | $grep hass | $grep -vE grep | awk '{print $2}' | xargs kill -9"
+  ps aux | $grep python3 | $grep hass | $grep -vE grep | awk '{print $2}' | xargs kill -9
 }
 
 # Pass commands to Home Assistant service
-systemctl_cmd() {
+function systemctl_cmd() {
   $HASSIO && hassio_cmd "$@"
 
   read_config
@@ -326,7 +347,9 @@ systemctl_cmd() {
 }
 
 # Show Z-Wave log
-zwave_log() {
+function zwave_log() {
+  $HASSIO && zwave_log_hassio "$@"
+
   read_config
 
   [[ -f "$OZW_LOG" ]] || die "$OZW_LOG: no such file -- please update OZW_LOG in $HASSCTL_CONF"
@@ -341,8 +364,24 @@ zwave_log() {
     -e 's/\(.*Error,.*\)/\o033[31m\1\o033[39m/'
 }
 
+# Initialization for grep (for BusyBox)
+function init_grep() {
+  # Check for apk (Alpine Linux)
+  [[ -x "$apk" ]] || return
+
+  # Check to see if grep supports -P option
+  $grep -qP ^ /dev/null > /dev/null 2>&1
+  if [[ $? -ne 1 ]]; then
+    [[ -x /usr/bin/grep ]] && grep=/usr/bin/grep && return
+
+    # GNU grep wasn't found, so add it
+    $apk add grep
+    [[ -x /usr/bin/grep ]] && grep=/usr/bin/grep
+  fi
+}
+
 # Initialization for npm
-npm_init() {
+function init_npm() {
   # Check for npm
   npm=$(command -v npm)
 
@@ -354,9 +393,9 @@ npm_init() {
 }
 
 # Initialization for clog
-clog_init() {
+function init_clog() {
   # Initialize npm
-  npm_init
+  init_npm
 
   # Check for color-logviewer
   clog=$(command -v color-logviewer)
@@ -371,11 +410,11 @@ clog_init() {
   LOG_COLORS="${LOG_COLORS:-ERROR=red,WARN=yellow,INFO=green,DEBUG=cyan,TRACE=blue}"
 
   # Default arguments for clog
-  clog_args="-c $LOG_COLORS"
+  [[ -n "$LOG_COLORS" ]] && clog_args="-c $LOG_COLORS"
 }
 
 # Special handling for Hass.io
-hassio_cmd() {
+function hassio_cmd() {
   read_config
 
   case "$1" in
@@ -397,16 +436,71 @@ hassio_cmd() {
   exit 0
 }
 
-hass_raw_log_hassio() {
+function hass_raw_log_hassio() {
   read_config
 
+  # @todo Move these next few lines into read_config if possible
   HASS_LOG="$HASS_CONFIG/home-assistant.log"
 
   [[ -f "$HASS_LOG" ]] || die "$HASS_LOG: no such file"
   [[ -r "$HASS_LOG" ]] || die "$HASS_LOG: file not readable"
 
-  clog_init
-  clear && $clog $clog_args "$HASS_LOG"
+  init_clog
+  clear && $clog "$@" $clog_args "$HASS_LOG"
+
+  exit 0
+}
+
+function hass_error_log_hassio() {
+  read_config
+
+  # @todo Move these next few lines into read_config if possible
+  HASS_LOG="$HASS_CONFIG/home-assistant.log"
+
+  [[ -f "$HASS_LOG" ]] || die "$HASS_LOG: no such file"
+  [[ -r "$HASS_LOG" ]] || die "$HASS_LOG: file not readable"
+
+  init_clog
+  init_grep
+  clear && $clog "$@" $clog_args "$HASS_LOG" | $grep -iP '^  .*$|^(?!.*is_failed=)(?!.*service=remove_failed_node)(?!.*service=replace_failed_node).*(error|errno|warning|exception|failure|failed|warn|except|fail|traceback).*'
+
+  exit 0
+}
+
+function hass_debug_log_hassio() {
+  read_config
+
+  # @todo Move these next few lines into read_config if possible
+  HASS_LOG="$HASS_CONFIG/home-assistant.log"
+
+  [[ -f "$HASS_LOG" ]] || die "$HASS_LOG: no such file"
+  [[ -r "$HASS_LOG" ]] || die "$HASS_LOG: file not readable"
+
+  init_clog
+  init_grep
+  clear && $clog "$@" $clog_args "$HASS_LOG" | $grep -iP '[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} DEBUG'
+
+  exit 0
+}
+
+function zwave_log_hassio() {
+  read_config
+
+  [[ -f "$OZW_LOG" ]] || die "$OZW_LOG: no such file -- please update OZW_LOG in $HASSCTL_CONF"
+  [[ -r "$OZW_LOG" ]] || die "$OZW_LOG: file not readable -- please update OZW_LOG in $HASSCTL_CONF"
+
+  init_clog
+  zwave_colors="Error=red,Warning=yellow,Info=green,Detail=cyan,Always=magenta"
+
+  if [[ -n "$clog_args" ]]; then
+    clog_args="$clog_args,$zwave_colors"
+  else
+    clog_args="-c $zwave_colors"
+  fi
+
+  clear && $clog "$@" $clog_args "$OZW_LOG"
+
+  exit 0
 }
 
 # Process arguments
@@ -433,6 +527,16 @@ case "$1" in
 
   config)
     check_config "${@:2}"
+    ;;
+
+  update)
+    if [[ "$2" == "ha" ]] || [[ "$2" == "hass" ]] || [[ "$2" == "homeassistant" ]]; then
+      update_hass "${@:3}"
+    elif [[ "$2" == "" ]] || [[ "$2" == "hassctl" ]]; then
+      update_hassctl "${@:3}"
+    else
+      usage
+    fi
     ;;
 
   update-hassctl)
